@@ -10,16 +10,12 @@ from googleapiclient.errors import HttpError
 
 # pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
 # If modifying these scopes, delete the file token.json.
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
 # The ID and range of a sample spreadsheet.
 SAMPLE_SPREADSHEET_ID = '1ttIu8dOBNu2n0_4Y8VkuH0hS-u1QI0XTfxKkwvGOaQc'
-SAMPLE_RANGE_NAME = 'JUSTIN PHX AT GSW_102323!B22:K54'
-BASE_RANGE_NAME = ['JUSTIN PHX AT GSW_102323','VIK PHX AT GSW_102323','ETHAN PHX AT GSW_102323']
-# B22:B27 D22:B27, F22:B27, H22:B27, J22:B27
-# B31:B36
-# B40:B45
-# B49:B54
+BASE_RANGE_NAME = ['JUSTIN GSW AT SAC_102723','ETHAN GSW AT SAC_102723', 'VIK GSW AT SAC_102723'] #VIK PHX AT LAL_102623'
+
 
 def filterRowsFromSheet(input):
   output = []
@@ -59,13 +55,17 @@ def generateLineupArray(sheet, baseRangeName, captainSet):
   # # Extract the sub-range from cell_values
   #  sub_range_data = [row[start_col:end_col + 1] for row in cell_values[start_row - 1:end_row]]
   inputRangeName = baseRangeName + '!' + baseCellRange
+  print(f"inputRangeName: {inputRangeName}")
   result = sheet.values().get(spreadsheetId=SAMPLE_SPREADSHEET_ID,
                                 range=inputRangeName).execute()
   values = result.get('values', [])
 
-  columnLetters = ['B','D','F','G','H']
+  columnLetters = ['B','D','F','H','J']
   #col is 0, 2,4,6,8
   # row is 0,5
+  # for idx, row in enumerate(values):
+  #   print(f"idx: {idx}, row: {row}")
+  # print(values)
   lineups = []
   for cellIdx, cell_map in enumerate(cell_ranges_map):
     start_row = cell_map[0]
@@ -73,6 +73,11 @@ def generateLineupArray(sheet, baseRangeName, captainSet):
     for col in range(5):
       lineup = []
       for row in range(start_row, end_row+1):
+        # print(f"values: {values[row]}, {start_row} : {end_row}, len: {len(values[row])}, row: {row}, col: {col}")
+        # if values[row]:
+        #   if len(values[row]) > col*2:
+        #     print(f"values: {values[row]}, len: {len(values[row])}, row: {row}, col: {col}")
+            #bug when less than 20 lineups
         lineup.append(values[row][col*2])
       lineups.append(lineup)
 
@@ -169,34 +174,40 @@ def main():
 
         # Call the Sheets API
         sheet = service.spreadsheets()
-        # result = sheet.values().get(spreadsheetId=SAMPLE_SPREADSHEET_ID,
-        #                             range=SAMPLE_RANGE_NAME).execute()
-        # values = result.get('values', [])
 
-        # if not values:
-        #     print('No data found.')
-        #     return
-        
-        # Iterate over all sheets and collect lineups for each player
         allLineupObjects = []
         captainSet = set()
         captains = {}
+        contestantLineupArrayDictionaries = {}
+        #This creates a long array of ALL the lineups: allLineupObjects
+        # also groups the contestant's lineups in: contestantLineupArrayDictionaries
         for baseRangeName in BASE_RANGE_NAME:
           lineupArray, captains = generateLineupArray(sheet, baseRangeName, captainSet)
+          contestantLineupArrayDictionaries[baseRangeName] = lineupArray
           for lineupObj in lineupArray:
             allLineupObjects.append(lineupObj)
-        for cpt in captainSet:
-          lineupSetForOneCaptain = splitAllLineupObjectsIntoSubLineups(allLineupObjects,cpt)
-          print(f"cpt: {cpt}")
-          setArray = buildSetArray(lineupSetForOneCaptain)
-          duplicateListForCaptain = findDuplicateLineupsFromSetArray(setArray)
-          for dupeLineup in duplicateListForCaptain:
-            print("\nDUPE SET: ")
-            for idx in dupeLineup["indexes"]:
-              sheet_found = lineupSetForOneCaptain[idx]["sheet"]
-              cell_range_found = lineupSetForOneCaptain[idx]["cell_range"]
-              print(f"dupe at sheet: {sheet_found}, cellRange: {cell_range_found}")
-            print("END DUPE SET\n")
+        
+        #TODO: 
+        # iterate over each key in playerLineupArrayDictionaries
+        for contestant in contestantLineupArrayDictionaries.keys():
+          for lineup in contestantLineupArrayDictionaries[contestant]:
+            line = create_csv_line_entry()
+            lines.append(line)
+          add_lines_to_csv_and_save(filename, lines, contestant)
+            # lines.append(line)
+
+        # for cpt in captainSet:
+        #   lineupSetForOneCaptain = splitAllLineupObjectsIntoSubLineups(allLineupObjects,cpt)
+        #   print(f"cpt: {cpt}")
+        #   setArray = buildSetArray(lineupSetForOneCaptain)
+        #   duplicateListForCaptain = findDuplicateLineupsFromSetArray(setArray)
+        #   for dupeLineup in duplicateListForCaptain:
+        #     print("\nDUPE SET: ")
+        #     for idx in dupeLineup["indexes"]:
+        #       sheet_found = lineupSetForOneCaptain[idx]["sheet"]
+        #       cell_range_found = lineupSetForOneCaptain[idx]["cell_range"]
+        #       print(f"dupe at sheet: {sheet_found}, cellRange: {cell_range_found}")
+        #     print("END DUPE SET\n")
 
 
     except HttpError as err:
